@@ -1,6 +1,8 @@
 import Toybox.ActivityMonitor;
 import Toybox.Lang;
+import Toybox.Position;
 import Toybox.SensorHistory;
+import Toybox.Time;
 import Toybox.Weather;
 
 // Centralized data fetching with null safety.
@@ -114,16 +116,64 @@ class DataProvider {
         return null;
     }
 
+    function _getLocation() as Position.Location? {
+        if (Toybox has :Weather && Weather has :getCurrentConditions) {
+            var cond = Weather.getCurrentConditions();
+            if (cond != null && cond has :observationLocationPosition && cond.observationLocationPosition != null) {
+                return cond.observationLocationPosition;
+            }
+        }
+        if (Toybox has :Position) {
+            var info = Position.getInfo();
+            if (info != null && info.position != null) {
+                return info.position;
+            }
+        }
+        return null;
+    }
+
     function getSunrise() as Time.Moment? {
         if (Toybox has :Weather && Weather has :getSunrise) {
-            return Weather.getSunrise(null, null);
+            var loc = _getLocation();
+            if (loc != null) {
+                return Weather.getSunrise(loc, Time.now());
+            }
         }
         return null;
     }
 
     function getSunset() as Time.Moment? {
         if (Toybox has :Weather && Weather has :getSunset) {
-            return Weather.getSunset(null, null);
+            var loc = _getLocation();
+            if (loc != null) {
+                return Weather.getSunset(loc, Time.now());
+            }
+        }
+        return null;
+    }
+
+    function getBodyBattery() as Number? {
+        if (Toybox has :SensorHistory && SensorHistory has :getBodyBatteryHistory) {
+            var iter = SensorHistory.getBodyBatteryHistory({ :period => 1 });
+            if (iter != null) {
+                var sample = iter.next();
+                if (sample != null && sample.data != null) {
+                    return (sample.data as Float).toNumber();
+                }
+            }
+        }
+        return null;
+    }
+
+    function getSensorTemp() as Float? {
+        if (Toybox has :SensorHistory && SensorHistory has :getTemperatureHistory) {
+            var iter = SensorHistory.getTemperatureHistory({ :period => 1 });
+            if (iter != null) {
+                var sample = iter.next();
+                if (sample != null && sample.data != null) {
+                    return sample.data as Float;
+                }
+            }
         }
         return null;
     }

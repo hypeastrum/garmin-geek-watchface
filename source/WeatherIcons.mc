@@ -157,7 +157,7 @@ module WeatherIcons {
 
     // --- Private drawing helpers ---
 
-    hidden function _drawSun(dc as Dc, cx as Number, cy as Number, size as Number) as Void {
+    function _drawSun(dc as Dc, cx as Number, cy as Number, size as Number) as Void {
         var r = size / 3;
         dc.fillCircle(cx, cy, r);
         // Rays: 8 short lines
@@ -175,7 +175,7 @@ module WeatherIcons {
         }
     }
 
-    hidden function _drawCloud(dc as Dc, cx as Number, cy as Number, size as Number, color as Number) as Void {
+    function _drawCloud(dc as Dc, cx as Number, cy as Number, size as Number, color as Number) as Void {
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
         var r = size / 4;
         // Three overlapping circles
@@ -186,7 +186,7 @@ module WeatherIcons {
         dc.fillRectangle(cx - r - r / 2, cy, r * 3, r / 2);
     }
 
-    hidden function _drawRainDrops(dc as Dc, cx as Number, y as Number, size as Number,
+    function _drawRainDrops(dc as Dc, cx as Number, y as Number, size as Number,
                                     count as Number, color as Number) as Void {
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
         var spacing = size / (count + 1);
@@ -197,7 +197,7 @@ module WeatherIcons {
         }
     }
 
-    hidden function _drawBolt(dc as Dc, cx as Number, cy as Number, size as Number, color as Number) as Void {
+    function _drawBolt(dc as Dc, cx as Number, cy as Number, size as Number, color as Number) as Void {
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
         dc.fillPolygon([
             [cx - size / 6, cy - size / 2] as Array<Number>,
@@ -210,7 +210,7 @@ module WeatherIcons {
         ] as Array< Array<Number> >);
     }
 
-    hidden function _drawSnowDots(dc as Dc, cx as Number, y as Number, size as Number, color as Number) as Void {
+    function _drawSnowDots(dc as Dc, cx as Number, y as Number, size as Number, color as Number) as Void {
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
         var dotR = size / 12;
         if (dotR < 1) { dotR = 1; }
@@ -219,13 +219,13 @@ module WeatherIcons {
         dc.fillCircle(cx + size / 4, y, dotR);
     }
 
-    hidden function _drawSnowDot(dc as Dc, x as Number, y as Number, r as Number, color as Number) as Void {
+    function _drawSnowDot(dc as Dc, x as Number, y as Number, r as Number, color as Number) as Void {
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
         if (r < 1) { r = 1; }
         dc.fillCircle(x, y, r);
     }
 
-    hidden function _drawFog(dc as Dc, cx as Number, cy as Number, size as Number, color as Number) as Void {
+    function _drawFog(dc as Dc, cx as Number, cy as Number, size as Number, color as Number) as Void {
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
         dc.setPenWidth(2);
         var halfW = size / 3;
@@ -236,7 +236,7 @@ module WeatherIcons {
         dc.setPenWidth(1);
     }
 
-    hidden function _drawWind(dc as Dc, cx as Number, cy as Number, size as Number, color as Number) as Void {
+    function _drawWind(dc as Dc, cx as Number, cy as Number, size as Number, color as Number) as Void {
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
         dc.setPenWidth(2);
         var left = cx - size / 3;
@@ -251,11 +251,11 @@ module WeatherIcons {
     }
 
     // Simple sin/cos approximation using lookup (avoids Math import issues).
-    hidden function _cos(angle as Float) as Float {
+    function _cos(angle as Float) as Float {
         return _sin(angle + 1.5708);
     }
 
-    hidden function _sin(angle as Float) as Float {
+    function _sin(angle as Float) as Float {
         // Normalize to [0, 2*PI)
         var twoPi = 6.2832;
         var a = angle;
@@ -270,7 +270,7 @@ module WeatherIcons {
         return _sinHalf(a);
     }
 
-    hidden function _sinHalf(a as Float) as Float {
+    function _sinHalf(a as Float) as Float {
         // Approximation for a in [0, PI]
         var pi = 3.14159;
         var num = 16.0 * a * (pi - a);

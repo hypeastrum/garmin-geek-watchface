@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="5">
-    <iq:application id="com.hypeastrum.geekwatchface"
+    <iq:application id="a1b2c3d4e5f60718293a4b5c6d7e8f90"
                     type="watchface"
                     name="@Strings.AppName"
                     entry="GeekWatchFaceApp"
@@ -8,7 +8,7 @@
                     minApiLevel="3.3.0">
         <iq:permissions>
             <iq:uses-permission id="SensorHistory"/>
-            <iq:uses-permission id="Weather"/>
+            <iq:uses-permission id="Positioning"/>
         </iq:permissions>
         <iq:products>
             <iq:product id="fenix7"/>
