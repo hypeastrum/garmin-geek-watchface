@@ -9,9 +9,13 @@ import Toybox.WatchUi;
 class GeekWatchFaceView extends WatchUi.WatchFace {
 
     private const COLOR_WARM = 0xFFDD99;
+    private const VECTOR_FONT_FACES = [
+        "RobotoCondensedRegular", "RobotoRegular", "Roboto", "PridiRegular"
+    ] as Array<String>;
 
     private var _data as DataProvider;
     private var _showSeconds as Boolean = true;
+    private var _curvedFont as VectorFont? = null;
 
     function initialize() {
         WatchFace.initialize();
@@ -19,6 +23,17 @@ class GeekWatchFaceView extends WatchUi.WatchFace {
     }
 
     function onLayout(dc as Dc) as Void {
+        if (Graphics has :getVectorFont) {
+            var size = (dc.getHeight() * 0.055).toNumber();
+            if (size < 10) { size = 10; }
+            for (var i = 0; i < VECTOR_FONT_FACES.size(); i++) {
+                var f = Graphics.getVectorFont({:face => VECTOR_FONT_FACES[i], :size => size});
+                if (f != null) {
+                    _curvedFont = f;
+                    break;
+                }
+            }
+        }
     }
 
     function onUpdate(dc as Dc) as Void {
@@ -54,49 +69,86 @@ class GeekWatchFaceView extends WatchUi.WatchFace {
         var gap = (digitW * 0.25).toNumber();
         var colonSize = thickness + 1;
 
-        var secDigitH = (baseDigitH * 0.65 / 1.5).toNumber();
-        var secDigitW = (baseDigitH * 0.30 / 1.5).toNumber();
-        var secThickness = (baseDigitH * 0.078 / 1.5).toNumber();
-        if (secThickness < 1) { secThickness = 1; }
-        var sColonSize = secThickness + 1;
-
-        var dateFont = _pickFontForHeight(dc, secDigitH);
-        var dateFontH = dc.getFontHeight(dateFont);
-        var dateStr = "";
-        var dateW = 0;
-        if (seconds != null) {
-            var monthNames = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
-            var monthIdx = (now.month != null ? (now.month as Number) : 1) - 1;
-            if (monthIdx < 0) { monthIdx = 0; }
-            if (monthIdx > 11) { monthIdx = 11; }
-            var dayN = now.day != null ? (now.day as Number) : 1;
-            dateStr = " " + _pad2(dayN) + monthNames[monthIdx];
-            dateW = dc.getTextWidthInPixels(dateStr, dateFont);
-        }
-
-        var timeW = 4 * digitW + 4 * gap + colonSize;
-        if (seconds != null) {
-            timeW += gap + sColonSize + gap + secDigitW + gap + secDigitW + dateW;
-        }
-
-        var timeX = leftAreaW / 2 - timeW / 2;
+        var hhmmWidth = 4 * digitW + 4 * gap + colonSize;
+        var timeX = leftAreaW / 2 - hhmmWidth / 2;
         if (timeX < 4) { timeX = 4; }
         var timeY = (h - digitH) / 2;
 
-        SegmentRenderer.drawTime(dc, hours, minutes, seconds,
+        SegmentRenderer.drawTime(dc, hours, minutes, null,
                                  timeX, timeY,
                                  digitW, digitH, thickness, gap,
                                  COLOR_WARM,
-                                 secDigitW, secDigitH, secThickness);
+                                 null, null, null);
 
-        if (seconds != null && dateStr.length() > 0) {
-            var secEndX = timeX + 4 * digitW + 4 * gap + colonSize
-                          + gap + sColonSize + gap + secDigitW + gap + secDigitW;
-            var secY = timeY + digitH - secDigitH;
-            var dateY = secY + (secDigitH - dateFontH) / 2;
-            dc.setColor(COLOR_WARM, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(secEndX, dateY, dateFont, dateStr, Graphics.TEXT_JUSTIFY_LEFT);
+        // --- Three zones to the right of the minutes ---
+        // Each 1/3 of the minute height: seconds+alarm / date / day+weather.
+        var rightColX = timeX + hhmmWidth + gap * 2;
+        var zoneH = digitH / 3;
+
+        dc.setColor(COLOR_WARM, Graphics.COLOR_TRANSPARENT);
+
+        // Zone 1: seconds (7-segment)
+        var z1Top = timeY;
+        var z1Mid = z1Top + zoneH / 2;
+        var sH = (zoneH - 2);
+        if (sH < 6) { sH = 6; }
+        var sW = (sH / 2).toNumber();
+        var sT = (sH * 0.14).toNumber();
+        if (sT < 1) { sT = 1; }
+        var sG = (sW * 0.25).toNumber();
+        if (sG < 1) { sG = 1; }
+        var sY = z1Mid - sH / 2;
+
+        if (_showSeconds && seconds != null) {
+            SegmentRenderer.drawDigit(dc, seconds / 10, rightColX, sY, sW, sH, sT, COLOR_WARM);
+            SegmentRenderer.drawDigit(dc, seconds % 10, rightColX + sW + sG, sY, sW, sH, sT, COLOR_WARM);
         }
+
+        var moonSize = zoneH - 2;
+        if (moonSize < 8) { moonSize = 8; }
+        var moonR = moonSize / 2;
+        var moonCx = rightColX + 2 * sW + sG + 4 + moonR;
+        _drawMoonIcon(dc, moonCx, z1Mid, moonR, _getMoonPhase(), COLOR_WARM);
+
+        // Zone 2: date (right-aligned)
+        var z2Mid = timeY + zoneH + zoneH / 2;
+        var dateFont = _pickFontForHeight(dc, zoneH);
+        var dateFontH = dc.getFontHeight(dateFont);
+        var monthNames = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+        var monthIdx = (now.month != null ? (now.month as Number) : 1) - 1;
+        if (monthIdx < 0) { monthIdx = 0; }
+        if (monthIdx > 11) { monthIdx = 11; }
+        var dayN = now.day != null ? (now.day as Number) : 1;
+        var dateStr = _pad2(dayN) + monthNames[monthIdx];
+
+        var dowFont = _pickFontForHeight(dc, zoneH);
+        var dowFontH = dc.getFontHeight(dowFont);
+        var dowNames = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+        var dowIdx = (now.day_of_week != null ? (now.day_of_week as Number) - 1 : 0);
+        if (dowIdx < 0) { dowIdx = 0; }
+        if (dowIdx > 6) { dowIdx = 6; }
+        var dowStr = dowNames[dowIdx];
+
+        var iconSize = zoneH - 2;
+        if (iconSize < 8) { iconSize = 8; }
+
+        // Right boundary used by zones 2 and 3.
+        var dateW = dc.getTextWidthInPixels(dateStr, dateFont);
+        var dowW = dc.getTextWidthInPixels(dowStr, dowFont);
+        var z3W = dowW + 4 + iconSize;
+        var maxW = dateW > z3W ? dateW : z3W;
+        var rightEdge = rightColX + maxW;
+
+        dc.drawText(rightEdge, z2Mid - dateFontH / 2, dateFont, dateStr,
+                    Graphics.TEXT_JUSTIFY_RIGHT);
+
+        // Zone 3: day of week (right-aligned) + weather icon at the far right
+        var z3Mid = timeY + 2 * zoneH + zoneH / 2;
+        var iconCx = rightEdge - iconSize / 2;
+        var iconType = WeatherIcons.conditionToIcon(_data.getWeatherCondition());
+        WeatherIcons.drawIcon(dc, iconType, iconCx, z3Mid, iconSize, COLOR_WARM);
+        dc.drawText(iconCx - iconSize / 2 - 4, z3Mid - dowFontH / 2, dowFont, dowStr,
+                    Graphics.TEXT_JUSTIFY_RIGHT);
 
         // --- Arc items ---
         var topItems = [
@@ -113,43 +165,36 @@ class GeekWatchFaceView extends WatchUi.WatchFace {
             _formatBodyBattery(),
             _formatSteps()
         ] as Array<String>;
+        var sol = _formatSolar();
+        if (sol != null) {
+            bottomItems.add(sol);
+        }
 
-        _drawArc(dc, w, h, topItems, 210.0, 330.0);
-        _drawArc(dc, w, h, bottomItems, 150.0, 30.0);
+        _drawCurvedText(dc, w, h, topItems, 90.0,
+            Graphics.RADIAL_TEXT_DIRECTION_CLOCKWISE);
+        _drawCurvedText(dc, w, h, bottomItems, 270.0,
+            Graphics.RADIAL_TEXT_DIRECTION_COUNTER_CLOCKWISE);
     }
 
-    private function _drawArc(dc as Dc, w as Number, h as Number,
-                              items as Array<String>,
-                              startDeg as Float, endDeg as Float) as Void {
-        var font = Graphics.FONT_XTINY;
+    private function _drawCurvedText(dc as Dc, w as Number, h as Number,
+                                     items as Array<String>,
+                                     angleDeg as Float,
+                                     direction as Number) as Void {
+        if (items.size() == 0 || _curvedFont == null) { return; }
         var cx = w / 2;
         var cy = h / 2;
-        var r = (w / 2) - 12;
-        var n = items.size();
-        if (n == 0) { return; }
+        var fontH = dc.getFontHeight(_curvedFont);
+        var r = (w / 2) - fontH / 2 - 4;
 
-        var step = (n > 1) ? (endDeg - startDeg) / (n - 1) : 0;
-        dc.setColor(COLOR_WARM, Graphics.COLOR_TRANSPARENT);
-
-        for (var i = 0; i < n; i++) {
-            var deg = startDeg + i * step;
-            var rad = deg * Math.PI / 180.0;
-            var ix = cx + (r * Math.cos(rad)).toNumber();
-            var iy = cy + (r * Math.sin(rad)).toNumber();
-
-            // Align text away from the nearest edge.
-            var horiz;
-            if (ix < cx - 30) {
-                horiz = Graphics.TEXT_JUSTIFY_LEFT;
-            } else if (ix > cx + 30) {
-                horiz = Graphics.TEXT_JUSTIFY_RIGHT;
-            } else {
-                horiz = Graphics.TEXT_JUSTIFY_CENTER;
-            }
-
-            dc.drawText(ix, iy, font, items[i],
-                horiz | Graphics.TEXT_JUSTIFY_VCENTER);
+        var text = items[0];
+        for (var i = 1; i < items.size(); i++) {
+            text += "   " + items[i];
         }
+
+        dc.setColor(COLOR_WARM, Graphics.COLOR_TRANSPARENT);
+        dc.drawRadialText(cx, cy, _curvedFont, text,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER,
+            angleDeg, r, direction);
     }
 
     // --- formatters ---
@@ -183,7 +228,7 @@ class GeekWatchFaceView extends WatchUi.WatchFace {
 
     private function _formatWeather() as String {
         var cur = _data.getCurrentTemp();
-        return cur != null ? "W " + cur.toString() + "°" : "W --°";
+        return cur != null ? "W " + cur.toNumber().toString() + "°" : "W --°";
     }
 
     private function _formatSensorTemp() as String {
@@ -194,7 +239,13 @@ class GeekWatchFaceView extends WatchUi.WatchFace {
 
     private function _formatBattery() as String {
         var pct = System.getSystemStats().battery;
-        return pct.format("%d") + "%";
+        return "BAT " + pct.format("%d") + "%";
+    }
+
+    private function _formatSolar() as String? {
+        var s = _data.getSolarIntensity();
+        if (s == null) { return null; }
+        return "SOL " + s.toString() + "K";
     }
 
     private function _formatHr() as String {
@@ -234,6 +285,86 @@ class GeekWatchFaceView extends WatchUi.WatchFace {
             return "0" + val.toString();
         }
         return val.toString();
+    }
+
+    private function _getMoonPhase() as Float {
+        var info = Gregorian.info(Time.now(), Time.FORMAT_SHORT);
+        var year = info.year != null ? info.year as Number : 2000;
+        var month = info.month != null ? info.month as Number : 1;
+        var day = info.day != null ? info.day as Number : 1;
+
+        var y = year;
+        var m = month;
+        if (m < 3) {
+            y -= 1;
+            m += 12;
+        }
+        m += 1;
+        var c = 365.25 * y;
+        var e = 30.6 * m;
+        var jd = c + e + day - 694039.09;
+        jd /= 29.5305882;
+        var b = jd.toNumber();
+        var frac = jd - b;
+        if (frac < 0) { frac += 1.0; }
+        return frac.toFloat();
+    }
+
+    private function _drawMoonIcon(dc as Dc, cx as Number, cy as Number,
+                                   r as Number, phase as Float, color as Number) as Void {
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        dc.drawCircle(cx, cy, r);
+
+        if (phase < 0.04 || phase > 0.96) { return; }
+        if (phase > 0.46 && phase < 0.54) {
+            dc.fillCircle(cx, cy, r);
+            return;
+        }
+
+        var pi = Math.PI;
+        var a = r * Math.cos(phase * 2.0 * pi);
+        var n = 12;
+        var pts = [] as Array< Array<Number> >;
+
+        if (phase < 0.5) {
+            // Waxing — right limb + terminator from bottom back to top
+            for (var i = 0; i <= n; i++) {
+                var t = i.toFloat() / n.toFloat();
+                var ang = -pi / 2.0 + pi * t;
+                pts.add([
+                    cx + (r * Math.cos(ang)).toNumber(),
+                    cy + (r * Math.sin(ang)).toNumber()
+                ] as Array<Number>);
+            }
+            for (var i = 0; i <= n; i++) {
+                var t = i.toFloat() / n.toFloat();
+                var ang = pi / 2.0 - pi * t;
+                pts.add([
+                    cx + (a * Math.cos(ang)).toNumber(),
+                    cy + (r * Math.sin(ang)).toNumber()
+                ] as Array<Number>);
+            }
+        } else {
+            // Waning — left limb + terminator from top back to bottom
+            for (var i = 0; i <= n; i++) {
+                var t = i.toFloat() / n.toFloat();
+                var ang = pi / 2.0 + pi * t;
+                pts.add([
+                    cx + (r * Math.cos(ang)).toNumber(),
+                    cy + (r * Math.sin(ang)).toNumber()
+                ] as Array<Number>);
+            }
+            for (var i = 0; i <= n; i++) {
+                var t = i.toFloat() / n.toFloat();
+                var ang = 3.0 * pi / 2.0 - pi * t;
+                pts.add([
+                    cx + (a * Math.cos(ang)).toNumber(),
+                    cy + (r * Math.sin(ang)).toNumber()
+                ] as Array<Number>);
+            }
+        }
+
+        dc.fillPolygon(pts);
     }
 
     private function _pickFontForHeight(dc as Dc, targetH as Number) as FontType {

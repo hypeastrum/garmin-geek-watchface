@@ -5,7 +5,7 @@
                     name="@Strings.AppName"
                     entry="GeekWatchFaceApp"
                     launcherIcon="@Drawables.LauncherIcon"
-                    minApiLevel="3.3.0">
+                    minApiLevel="4.0.0">
         <iq:permissions>
             <iq:uses-permission id="SensorHistory"/>
             <iq:uses-permission id="Positioning"/>
