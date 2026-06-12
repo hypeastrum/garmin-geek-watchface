@@ -2,6 +2,7 @@ import Toybox.ActivityMonitor;
 import Toybox.Lang;
 import Toybox.Position;
 import Toybox.SensorHistory;
+import Toybox.System;
 import Toybox.Time;
 import Toybox.Weather;
 
@@ -179,14 +180,9 @@ class DataProvider {
     }
 
     function getSolarIntensity() as Number? {
-        if (Toybox has :SensorHistory && SensorHistory has :getSolarIntensityHistory) {
-            var iter = SensorHistory.getSolarIntensityHistory({ :period => 1 });
-            if (iter != null) {
-                var sample = iter.next();
-                if (sample != null && sample.data != null) {
-                    return (sample.data as Number);
-                }
-            }
+        var stats = System.getSystemStats();
+        if (stats has :solarIntensity && stats.solarIntensity != null) {
+            return (stats.solarIntensity as Number);
         }
         return null;
     }

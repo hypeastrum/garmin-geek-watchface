@@ -9,6 +9,10 @@ class GeekWatchFaceApp extends Application.AppBase {
     }
 
     function getInitialView() as Array<Views or InputDelegates> {
-        return [new GeekWatchFaceView()] as Array<Views or InputDelegates>;
+        var view = new GeekWatchFaceView();
+        if (WatchUi has :WatchFaceDelegate) {
+            return [view, new GeekWatchFaceDelegate(view)] as Array<Views or InputDelegates>;
+        }
+        return [view] as Array<Views or InputDelegates>;
     }
 }
